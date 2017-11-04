@@ -1,5 +1,5 @@
-#!/usr/bin/python3
-# coding=utf-8
+#!/usr/bin/env python
+# -*- coding: UTF-8 -*-
 
 import pickle
 import numpy as np
@@ -34,7 +34,6 @@ def train_test_split(data, label, test_size=0.2):
 
 
 class DicisionTree(object):
-
     def __init__(self, file=None):
         if file:
             self.load(file)
@@ -59,10 +58,15 @@ class DicisionTree(object):
             Ent -= prob * np.log2(prob)
         return Ent
 
-    def calcInfoGain(self, values, label, bound, Ent, weight, weight_sum):
+    def calcInfoGainRatio(self, values, label, Ent, weight,
+                     weight_sum, bound=None, subset=None):
         bool_less = []
-        for value in values:
-            bool_less.append(value < bound)
+        if bound is None:
+            for value in values:
+                bool_less.append(value in subset)
+        else:
+            for value in values:
+                bool_less.append(value < bound)
         bool_more = [not x for x in bool_less]
 
         less_label = label[bool_less]
@@ -78,29 +82,32 @@ class DicisionTree(object):
         less_ent = self.calcEnt(less_label, less_weight, less_weight_sum)
         more_ent = self.calcEnt(more_label, more_weight, more_weight_sum)
 
-        result = Ent - less_ent * less_ratio
-        result -= more_ent * more_ratio
-        return result, less_ratio
+        p_less = less_weight_sum / weight_sum
+        p_more = more_weight_sum / weight_sum
+        split_info = -p_less * np.log2(p_less) - p_more * np.log2(p_more)
 
-    def calcSplitInfo(self, data, weight, weight_sum):
-        count = {}
-        result = 0
-        for i in range(len(data)):
-            if data[i] in count:
-                count[data[i]] += weight[i]
-            else:
-                count[data[i]] = weight[i]
-        for key in count:
-            p_key = count[key] / weight_sum
-            result -= p_key * np.log2(p_key)
-        return result
+        info_gain = Ent - less_ent * less_ratio
+        info_gain -= more_ent * more_ratio
+        # print(info_gain, split_info)
+        return info_gain, split_info, less_ratio
 
-    def delMissing(self, data_set, label, weight):
+    # def calcSplitInfo(self, data, weight, weight_sum):
+    #     count = {}
+    #     result = 0
+    #     for i in range(len(data)):
+    #         if data[i] in count:
+    #             count[data[i]] += weight[i]
+    #         else:
+    #             count[data[i]] = weight[i]
+    #     for key in count:
+    #         p_key = count[key] / weight_sum
+    #         result -= p_key * np.log2(p_key)
+    #     return result
+
+    def delMissing(self, data, label, weight):
         weight_sum = sum(weight)
-        is_valid = []
-        for data in data_set:
-            is_valid.append(data != np.NaN)
-        valid_data = data_set[is_valid]
+        is_valid = [not x for x in pd.isnull(data)]
+        valid_data = data[is_valid]
         valid_label = label[is_valid]
         valid_weight = weight[is_valid]
         return (valid_data, valid_label, valid_weight,
@@ -111,31 +118,64 @@ class DicisionTree(object):
         best_feature = None
         best_bound = None
         best_less_ratio = None
+        best_subset = None
         for feature in range(self.m):
             valid_info = self.delMissing(data[:, feature], label, weight)
             (valid_data, valid_label, valid_weight, valid_weight_sum,
                 weight_sum) = valid_info
+            if len(valid_data) <= 1:
+                continue
             Ent = self.calcEnt(valid_label, valid_weight, valid_weight_sum)
+            # print(Ent)
             values = sorted(valid_data)
-            last_value = values[0]
-            split_info = self.calcSplitInfo(values, valid_weight,
-                                            valid_weight_sum)
-            for value in values:
-                if value == last_value:
+            # split_info = self.calcSplitInfo(values, valid_weight,
+            #                                 valid_weight_sum)
+            valid_ratio = valid_weight_sum / weight_sum
+            if self.sortable[feature]:
+                last_value = values[0]
+                for value in values:
+                    if value == last_value:
+                        continue
+                    bound = (value + last_value) / 2
+                    last_value = value
+                    ratio_result = self.calcInfoGainRatio(values, valid_label,
+                                                         Ent, valid_weight,
+                                                         valid_weight_sum,
+                                                         bound=bound)
+                    info_gain, split_info, less_ratio = ratio_result
+                    gain_ratio = valid_ratio * info_gain
+                    # print(feature, bound, gain_ratio, less_ratio)
+                    if gain_ratio > max_gain_ratio:
+                        max_gain_ratio = gain_ratio
+                        best_feature = feature
+                        best_bound = bound
+                        best_subset = None
+                        best_less_ratio = less_ratio
+            else:
+                value_set = list(set(values))
+                length = len(value_set)
+                if length <= 1:
                     continue
-                bound = (value + last_value) / 2
-                last_value = value
-                valid_ratio = valid_weight_sum / weight_sum
-                info_gain, less_ratio = self.calcInfoGain(values, valid_label,
-                                              bound, Ent, valid_weight,
-                                              valid_weight_sum)
-                gain_ratio = valid_ratio * info_gain / split_info
-                if gain_ratio > max_gain_ratio:
-                    max_gain_ratio = gain_ratio
-                    best_feature = feature
-                    best_bound = bound
-                    best_less_ratio = less_ratio
-        return best_feature, best_bound, best_less_ratio
+                for i in range(1, 2**(length-1)):
+                    subset = set()
+                    for j in range(length):
+                        if (i >> j) % 2 == 1:
+                            subset.add(value_set[j])
+                    ratio_result = self.calcInfoGainRatio(values, valid_label,
+                                                         Ent, valid_weight,
+                                                         valid_weight_sum,
+                                                         subset=subset)
+                    info_gain, split_info, less_ratio = ratio_result
+                    gain_ratio = valid_ratio * info_gain / split_info
+                    # print(feature, subset, gain_ratio, less_ratio)
+                    if gain_ratio > max_gain_ratio:
+                        max_gain_ratio = gain_ratio
+                        best_feature = feature
+                        best_subset = subset
+                        best_bound = None
+                        best_less_ratio = less_ratio
+
+        return best_feature, best_bound, best_subset, best_less_ratio
 
     def getMost(self, labels):
         count = {}
@@ -153,9 +193,14 @@ class DicisionTree(object):
         return most_label
 
     def extendTree(self, data, label, weight):
-        if len(set(label.tolist())) == 1:
+        if len(set(label)) == 1:
             return label[0]
-        feature, bound, less_ratio = self.chooseBound(data, label, weight)
+        choose_result = self.chooseBound(data, label, weight)
+        feature, bound, subset, less_ratio = choose_result
+        if subset:
+            print(feature, subset)
+        else:
+            print(feature, bound)
         if feature is None:
             return self.getMost(label)
 
@@ -174,14 +219,24 @@ class DicisionTree(object):
                 more_data.append(data[i])
                 more_label.append(label[i])
                 more_weight.append(1 - less_ratio)
-            elif values[i] < bound:
-                less_data.append(data[i])
-                less_label.append(label[i])
-                less_weight.append(weight[i])
+            elif self.sortable[feature]:
+                if values[i] < bound:
+                    less_data.append(data[i])
+                    less_label.append(label[i])
+                    less_weight.append(weight[i])
+                else:
+                    more_data.append(data[i])
+                    more_label.append(label[i])
+                    more_weight.append(weight[i])
             else:
-                more_data.append(data[i])
-                more_label.append(label[i])
-                more_weight.append(weight[i])
+                if values[i] in subset:
+                    less_data.append(data[i])
+                    less_label.append(label[i])
+                    less_weight.append(weight[i])
+                else:
+                    more_data.append(data[i])
+                    more_label.append(label[i])
+                    more_weight.append(weight[i])
 
         less_data = np.array(less_data)
         less_label = np.array(less_label)
@@ -190,13 +245,13 @@ class DicisionTree(object):
         more_label = np.array(more_label)
         more_weight = np.array(more_weight)
 
-        tree = [feature, bound]
+        tree = [feature, bound if bound else subset]
         tree.append(self.getMost(label))
         tree.append(self.extendTree(less_data, less_label, less_weight))
         tree.append(self.extendTree(more_data, more_label, more_weight))
         return tree
 
-    def preprocess(self, data_set, missing_values=np.NaN, avg=None):
+    def missingToMean(self, data_set, missing_values=np.NaN, avg=None):
         if avg:
             self.avg = avg
         if self.avg:
@@ -221,7 +276,7 @@ class DicisionTree(object):
         for missing in is_missing:
             data_set[missing[0]][missing[1]] = self.avg[missing[1]]
 
-    def train_prune_split(self, data, label, prune_size=0.2):
+    def trainPruneSplit(self, data, label, prune_size=0.2):
         n = data.shape[0]
         prune_num = round(prune_size * n)
         train_index = list(range(n))
@@ -249,14 +304,13 @@ class DicisionTree(object):
         if not tree:
             tree = self.tree
         if isinstance(sub_tree[3], list):
-            # print('hh')
             best_result = max(best_result, self.prune(
                 sub_tree[3], data, label, sub_tree, 3, best_result))
         if isinstance(sub_tree[4], list):
             best_result = max(best_result, self.prune(
                 sub_tree[4], data, label, sub_tree, 4, best_result))
         parent[parent_index] = sub_tree[2]
-        # self.createPlot()
+        # self.plot()
         temp_result = self.evaluate(data, label)
         if temp_result <= best_result:
             parent[parent_index] = sub_tree
@@ -264,35 +318,43 @@ class DicisionTree(object):
         else:
             return temp_result
 
-    def train(self, data, label):
+    def train(self, data, label, sortable=None, prune_size=0.2):
         self.data = data
         self.label = label
         self.n, self.m = self.data.shape
-        split_result = self.train_prune_split(self.data, self.label)
+        if sortable:
+            self.sortable = sortable
+        else:
+            self.sortable = len(data[0]) * [True]
+        split_result = self.trainPruneSplit(self.data, self.label, prune_size)
         train_data, prune_data, train_label, prune_label = split_result
         weight = np.ones(len(train_data))
         self.tree = self.extendTree(train_data, train_label, weight)
         root_parent = [self.tree]
-        result = self.evaluate(prune_data, prune_label)
-        print(result)
-        self.createPlot()
-        result = self.prune(self.tree, prune_data,
-                            prune_label, root_parent, 0, result)
-        print(result)
-        self.createPlot()
+        if len(prune_data):
+            # print(result)
+            # self.plot()
+            result = self.evaluate(prune_data, prune_label)
+            result = self.prune(self.tree, prune_data,
+                                prune_label, root_parent, 0, result)
+            # print(result)
+            # self.plot()
 
     def save(self, file):
-        pickle.dump((self.tree, self.avg), open(file, 'wb'))
+        pickle.dump((self.tree, self.sortable), open(file, 'wb'))
 
     def load(self, file):
-        self.tree, self.avg = pickle.load(open(file, 'rb'))
+        self.tree, self.sortable = pickle.load(open(file, 'rb'))
 
     def predict(self, data_set):
         result = []
         for data in data_set:
             tree = self.tree
             while isinstance(tree, list):
-                is_more = data[tree[0]] > tree[1]
+                if self.sortable[tree[0]]:
+                    is_more = data[tree[0]] > tree[1]
+                else:
+                    is_more = data[tree[0]] not in tree[1]
                 tree = tree[is_more + 3]
             result.append(tree)
         return np.array(result)
@@ -316,9 +378,9 @@ class DicisionTree(object):
             tree = self.tree
         max_depth = 1
         if isinstance(tree[3], list):
-            max_depth = max(max_depth, self.getLeafNum(tree[3]))
+            max_depth = max(max_depth, self.getDepth(tree[3]))
         if isinstance(tree[4], list):
-            max_depth = max(max_depth, self.getLeafNum(tree[4]))
+            max_depth = max(max_depth, self.getDepth(tree[4]))
         return max_depth + 1
 
     def plotNode(self, nodeTxt, centerPt, parentPt, nodeType):
@@ -339,7 +401,10 @@ class DicisionTree(object):
         numLeafs = self.getLeafNum(myTree)
         depth = self.getDepth(myTree)
         # the text label for this node should be this
-        firstStr = str(myTree[:2])
+        if self.sortable[myTree[0]]:
+            firstStr = str(myTree[0]) + ' ' + str(round(myTree[1], 3))
+        else:
+            firstStr = str(myTree[0]) + ' l:' + str(len(myTree[1]))
         cntrPt = (self.xOff + (1.0 + float(numLeafs)) /
                   2.0/self.totalW, self.yOff)
         # self.plotMidText(cntrPt, parentPt, nodeTxt)
@@ -355,7 +420,7 @@ class DicisionTree(object):
                 # self.plotMidText((self.xOff, self.yOff), cntrPt, str(i-3))
         self.yOff = self.yOff + 1.0/self.totalD
 
-    def createPlot(self):
+    def plot(self):
         self.decisionNode = dict(boxstyle="sawtooth", fc="0.8")
         self.leafNode = dict(boxstyle="round4", fc="0.8")
         self.arrow_args = dict(arrowstyle="<-")
@@ -382,3 +447,12 @@ if __name__ == '__main__':
     dt.train(train, train_label)
     print(dt.predict(test))
     print(test_label)
+    dt.plot()
+    # data = np.array([[3, 1, 0],
+    #                  [1, 0, 1],
+    #                  [0, 1, 0],
+    #                  [3, 2, 1]])
+    # label = np.array([0, 1, 1, 1])
+    # dt = DicisionTree()
+    # dt.train(data, label, [False, False, False], 0)
+    # dt.plot()
