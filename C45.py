@@ -5,7 +5,7 @@ import pickle
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
-
+from sklearn import tree
 
 def load_data(file, labelmap=None):
     data = pd.read_csv(file, header=None)
@@ -34,6 +34,7 @@ def train_test_split(data, label, test_size=0.2):
 
 
 class DicisionTree(object):
+
     def __init__(self, file=None):
         if file:
             self.load(file)
@@ -59,7 +60,7 @@ class DicisionTree(object):
         return Ent
 
     def calcInfoGainRatio(self, values, label, Ent, weight,
-                     weight_sum, bound=None, subset=None):
+                          weight_sum, bound=None, subset=None):
         bool_less = []
         if bound is None:
             for value in values:
@@ -139,9 +140,9 @@ class DicisionTree(object):
                     bound = (value + last_value) / 2
                     last_value = value
                     ratio_result = self.calcInfoGainRatio(values, valid_label,
-                                                         Ent, valid_weight,
-                                                         valid_weight_sum,
-                                                         bound=bound)
+                                                          Ent, valid_weight,
+                                                          valid_weight_sum,
+                                                          bound=bound)
                     info_gain, split_info, less_ratio = ratio_result
                     gain_ratio = valid_ratio * info_gain
                     # print(feature, bound, gain_ratio, less_ratio)
@@ -162,11 +163,11 @@ class DicisionTree(object):
                         if (i >> j) % 2 == 1:
                             subset.add(value_set[j])
                     ratio_result = self.calcInfoGainRatio(values, valid_label,
-                                                         Ent, valid_weight,
-                                                         valid_weight_sum,
-                                                         subset=subset)
+                                                          Ent, valid_weight,
+                                                          valid_weight_sum,
+                                                          subset=subset)
                     info_gain, split_info, less_ratio = ratio_result
-                    gain_ratio = valid_ratio * info_gain / split_info
+                    gain_ratio = valid_ratio * info_gain
                     # print(feature, subset, gain_ratio, less_ratio)
                     if gain_ratio > max_gain_ratio:
                         max_gain_ratio = gain_ratio
@@ -446,13 +447,10 @@ if __name__ == '__main__':
     dt = DicisionTree()
     dt.train(train, train_label)
     print(dt.predict(test))
+
+    clf = tree.DecisionTreeClassifier()
+    clf = clf.fit(train, train_label)
+    print(clf.predict(test))
+
     print(test_label)
     dt.plot()
-    # data = np.array([[3, 1, 0],
-    #                  [1, 0, 1],
-    #                  [0, 1, 0],
-    #                  [3, 2, 1]])
-    # label = np.array([0, 1, 1, 1])
-    # dt = DicisionTree()
-    # dt.train(data, label, [False, False, False], 0)
-    # dt.plot()

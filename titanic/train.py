@@ -6,7 +6,7 @@ import pandas as pd
 import numpy as np
 sys.path.append("..")
 
-import C45_old
+import C45
 
 def load_data(file, is_train=True):
     data = pd.read_csv(file)
@@ -44,14 +44,14 @@ def train_test_split(data, label, test_size=0.2):
     return train, test, train_label, test_label
 
 
-if __name__ == '__main__':
+def main():
     data, label, sortable = load_data('train.csv')
     result_sum = 0
     iter_num = 8
     for i in range(iter_num):
         train, test, train_label, test_label = train_test_split(data, label)
-        predict_data = load_data('test.csv', False)
-        dt = C45_old.DicisionTree()
+        # predict_data = load_data('test.csv', False)
+        dt = C45.DicisionTree()
         dt.train(train, train_label, sortable, 0)
         evaluate_result = dt.evaluate(test, test_label)
         print(evaluate_result)
@@ -60,3 +60,6 @@ if __name__ == '__main__':
     print(result_sum / iter_num)
     # dt.save('titanic_tree.pkl')
     dt.plot()
+
+if __name__ == '__main__':
+    main()

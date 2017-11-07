@@ -1,9 +1,10 @@
-#!/usr/bin/python3
-# coding=utf-8
+#!/usr/bin/env python
+# -*- coding: UTF-8 -*-
 
 import numpy as np
 import pandas as pd
 from collections import Counter
+from sklearn.neighbors import KNeighborsClassifier
 
 def load_data(file, labelmap=None):
     data = pd.read_csv(file, header=None)
@@ -47,7 +48,7 @@ def get_most(labels):
     return most_label
 
 
-def kNN(Xs, data, label, k = 1):
+def kNN(Xs, data, label, k = 3):
     length = len(data)
     result = []
     for X in Xs:
@@ -69,4 +70,7 @@ if __name__ == '__main__':
 
     train, test, train_label, test_label = train_test_split(data, label)
     print(kNN(test, train, train_label))
+    neigh = KNeighborsClassifier(n_neighbors=3)
+    neigh.fit(train, train_label)
+    print(neigh.predict(test))
     print(test_label)
