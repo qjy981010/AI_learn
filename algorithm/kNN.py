@@ -66,7 +66,7 @@ if __name__ == '__main__':
     labelmap = {'Iris-setosa': 0,
                 'Iris-versicolor': 1,
                 'Iris-virginica': 2}
-    data, label = load_data('iris.csv', labelmap)
+    data, label = load_data('data/iris.csv', labelmap)
 
     train, test, train_label, test_label = train_test_split(data, label)
     print(kNN(test, train, train_label))

@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 # -*- coding: UTF-8 -*-
 
 import torch
@@ -36,11 +36,18 @@ class Net(torch.nn.Module):
 
     def forward(self, x):
         x = self.pool(torch.nn.functional.relu(self.conv1(x)))
+        print(x.size())
         x = self.pool(torch.nn.functional.relu(self.conv2(x)))
+        print(x.size())
         x = x.view(-1, 16*5*5)
+        print(x.size())
         x = torch.nn.functional.relu(self.fc1(x))
+        print(x.size())
         x = torch.nn.functional.relu(self.fc2(x))
+        print(x.size())
         x = self.fc3(x)
+        print(x.size())
+        print()
         return x
 
 
@@ -49,7 +56,7 @@ def train(trainloader):
     criterion = torch.nn.CrossEntropyLoss()
     optimizer = torch.optim.SGD(net.parameters(), lr=0.001, momentum=0.9)
 
-    for epoch in range(2):
+    for epoch in range(1):
         running_loss = 0.0
         for i, data in enumerate(trainloader, 0):
             inputs, labels = data
@@ -78,12 +85,12 @@ def test(net, testloader, classes):
     for data in testloader:
         images, labels = data
         outputs = net(Variable(images.cuda()))
-        _, predicted = torch.max(outputs.data, 1)
+        predicted = torch.max(outputs.data, 1)[1]
         total += labels.size(0)
         result = (predicted == labels.cuda())
         correct += result.sum()
         c = result.squeeze()
-        for i in range(4):
+        for i in range(len(labels)):
             label = labels[i]
             class_correct[label] += c[i]
             class_total[label] += 1
@@ -98,6 +105,6 @@ def test(net, testloader, classes):
 if __name__ == '__main__':
     trainloader, testloader, classes = get_data()
     net = train(trainloader)
-    pickle.dump(net, open('./net.pkl', 'wb'))
-    net = pickle.load(open('./net.pkl', 'rb'))
+    pickle.dump(net, open('./net/alexnet.pkl', 'wb'))
+    net = pickle.load(open('./net/alexnet.pkl', 'rb'))
     test(net, testloader, classes)

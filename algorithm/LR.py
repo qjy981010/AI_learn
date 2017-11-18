@@ -66,7 +66,7 @@ def plot(data, label, theta):
 
 
 if __name__ == '__main__':
-    data, label = load_data('binary_classification.csv')
+    data, label = load_data('data/binary_classification.csv')
     data[:, 1] = data[:, 1] / 5
     theta = LR(data, label, 0.01, 5000, regul_para=0.3, method='BGD')
     plot(data, label, theta)

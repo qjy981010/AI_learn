@@ -4,7 +4,8 @@
 import random
 import matplotlib.pyplot as plt
 
-def Fb(true_label, predict_label, b=1):
+
+def Fb_score(true_label, predict_label, b=1):
     length = len(true_label)
     assert(length == len(predict_label))
     TP = FN = FP = 0
@@ -15,7 +16,7 @@ def Fb(true_label, predict_label, b=1):
             else:
                 FN += 1
         elif predict_label[i] > 0:
-                FP += 1
+            FP += 1
     P = TP / (TP + FP)
     R = TP / (TP + FN)
     score = (1 + b**2) * P * R / ((b**2 * P) + R)
@@ -64,7 +65,7 @@ def roc_curve(true_label, scores, plot=False):
 
     x_pos = []
     y_pos = []
-    for i in range(length,-1,-1):
+    for i in range(length, -1, -1):
         TP = sum(true_label[i:])
         FP = length - i - TP
         x_pos.append(FP / N)
@@ -90,7 +91,14 @@ def auc(true_label, scores, plot=False):
     return auc
 
 
+def accuracy(true_label, predict_label):
+    length = len(predict_label)
+    assert len(true_label) == length
+    correct = sum([x == y for x, y in zip(true_label, predict_label)])
+    return correct / length
+
+
 if __name__ == '__main__':
-    true_label = [1,0,1,1,1,1,0,1,0,0,1,0,1,1,0]
+    true_label = [1, 0, 1, 1, 1, 1, 0, 1, 0, 0, 1, 0, 1, 1, 0]
     scores = [random.random() for i in range(len(true_label))]
     print(auc(true_label, scores, True))
