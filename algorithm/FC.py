@@ -74,38 +74,42 @@ class FC:
         momentum_para = momentum / batch_size
         if method == 'adagrad':
             self.grad_w_sum = [(a/batch_size)**2 + b for a, b in
-                                        zip(nabla_w_sum, self.grad_w_sum)]
+                               zip(nabla_w_sum, self.grad_w_sum)]
             self.grad_b_sum = [(a/batch_size)**2 + b for a, b in
-                                        zip(nabla_b_sum, self.grad_b_sum)]
+                               zip(nabla_b_sum, self.grad_b_sum)]
             epsilon = 1E-8
             self.weight = np.array([w - eta_para * nabla / np.sqrt(np.float32(
-                                                            epsilon + sq_sum))
-                                    for w, nabla, sq_sum in zip(self.weight,
-                                                nabla_w_sum, self.grad_w_sum)])
+                epsilon + sq_sum))
+                for w, nabla, sq_sum in zip(self.weight,
+                                            nabla_w_sum, self.grad_w_sum)])
             self.bias = np.array([b - eta_para * nabla / np.sqrt(np.float32(
-                                                            epsilon + sq_sum))
-                                  for b, nabla, sq_sum in zip(self.bias,
-                                                nabla_b_sum, self.grad_b_sum)])
+                epsilon + sq_sum))
+                for b, nabla, sq_sum in zip(self.bias,
+                                            nabla_b_sum, self.grad_b_sum)])
         elif method == 'adam':
             epsilon = 1E-8
             mt_w = [(beta1*mt_1 + (1-beta1) * gt/batch_size)
-                        for mt_1, gt in zip(self.mt_1_w, nabla_w_sum)]
+                    for mt_1, gt in zip(self.mt_1_w, nabla_w_sum)]
             mt_b = [(beta1*mt_1 + (1-beta1) * gt/batch_size)
-                        for mt_1, gt in zip(self.mt_1_b, nabla_b_sum)]
+                    for mt_1, gt in zip(self.mt_1_b, nabla_b_sum)]
             vt_w = [(beta2*vt_1 + (1-beta2)*(gt/batch_size)**2)
-                        for vt_1, gt in zip(self.vt_1_w, nabla_w_sum)]
+                    for vt_1, gt in zip(self.vt_1_w, nabla_w_sum)]
             vt_b = [(beta2*vt_1 + (1-beta2)*(gt/batch_size)**2)
-                        for vt_1, gt in zip(self.vt_1_b, nabla_b_sum)]
+                    for vt_1, gt in zip(self.vt_1_b, nabla_b_sum)]
             (self.mt_1_w, self.mt_1_b, self.vt_1_w,
-                            self.vt_1_b) = mt_w, mt_b, vt_w, vt_b
+             self.vt_1_b) = mt_w, mt_b, vt_w, vt_b
             mt_w = [mt / (1 - beta1**self.t) for mt in mt_w]
             mt_b = [mt / (1 - beta1**self.t) for mt in mt_b]
             vt_w = [vt / (1 - beta2**self.t) for vt in vt_w]
             vt_b = [vt / (1 - beta2**self.t) for vt in vt_b]
-            delta_w = [eta*m/(np.sqrt(np.float32(v))+epsilon) for m, v in zip(mt_w, vt_w)]
-            delta_b = [eta*m/(np.sqrt(np.float32(v))+epsilon) for m, v in zip(mt_b, vt_b)]
-            self.weight = np.array([w - delta for w, delta in zip(self.weight, delta_w)])
-            self.bias = np.array([b - delta for b, delta in zip(self.bias, delta_b)])
+            delta_w = [eta*m/(np.sqrt(np.float32(v))+epsilon)
+                       for m, v in zip(mt_w, vt_w)]
+            delta_b = [eta*m/(np.sqrt(np.float32(v))+epsilon)
+                       for m, v in zip(mt_b, vt_b)]
+            self.weight = np.array(
+                [w - delta for w, delta in zip(self.weight, delta_w)])
+            self.bias = np.array(
+                [b - delta for b, delta in zip(self.bias, delta_b)])
         elif momentum:
             self.weight = np.array([w - nabla * eta_para - pre * momentum_para
                                     for w, nabla, pre in zip(self.weight,
@@ -119,9 +123,9 @@ class FC:
             self.pre_nabla_w, self.pre_nabla_b = nabla_w_sum, nabla_b_sum
         else:
             self.weight = np.array([w - nabla * eta_para for w, nabla in
-                                                zip(self.weight, nabla_w_sum)])
+                                    zip(self.weight, nabla_w_sum)])
             self.bias = np.array([b - nabla * eta_para for b, nabla in
-                                                zip(self.bias, nabla_b_sum)])
+                                  zip(self.bias, nabla_b_sum)])
 
     def train(self, train_data, eta=0.1, epoch_num=100, batch_size=1,
               test_data=None, method='mini_batch', momentum=0):
