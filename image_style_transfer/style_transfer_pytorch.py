@@ -38,7 +38,6 @@ class FakeVGG(nn.Module):
         self.features5 = nn.Sequential(
             *list(original_model.features.children())[39:52])
         self.pool = list(original_model.features.children())[-1]
-        # self.criterion = nn.MSELoss()
 
     def forward(self, x):
         results = []
@@ -98,21 +97,18 @@ def train(alpha, beta, epoch_num=100):
     input_img = nn.Parameter(input_img.data)
     criterion = TotalLoss(As, P, alpha, beta).cuda()
     optimizer = optim.LBFGS([input_img])
-    first_backward = 1
+    retain_graph = True
+
+    def closure():
+        optimizer.zero_grad()
+        result = model.forward(input_img)
+        loss = criterion(result, result[3])
+        print('loss: ', float(loss.data[0]))
+        loss.backward(retain_graph=True)
+        return loss
+
     for epoch in range(epoch_num):
         print('---- epoch: %d ----' % epoch)
-        def closure():
-            optimizer.zero_grad()
-            result = model.forward(input_img)
-            # loss = calc_loss(As, result, result[3], P, alpha, beta)
-            loss = criterion(result, result[3])
-            print('loss: ', float(loss.data[0]))
-            if first_backward:
-                loss.backward(retain_graph=True)
-                first_backward = 0
-            else:
-                loss.backward()
-            return loss
         optimizer.step(closure)
     show_image(input_img)
 
