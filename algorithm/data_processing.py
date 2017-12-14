@@ -5,12 +5,13 @@ import numpy as np
 import pandas as pd
 
 
-def load_data(file, labelmap=None, header='infer', label_column=-1):
+def load_data(file, labelmap=None, header='infer', label_column=-1, shuffle=True):
     data = pd.read_csv(file, header=header)
     data = data.values
     if labelmap is not None:
         data[:, label_column] = np.array([labelmap[x] for x in data[:, label_column]])
-    np.random.shuffle(data)
+    if shuffle:
+        np.random.shuffle(data)
     return data
 
 

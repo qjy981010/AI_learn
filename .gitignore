@@ -1,3 +1,4 @@
+OCR/data/
 __pycache__/
 cifar_10_train/data/
 *.pkl

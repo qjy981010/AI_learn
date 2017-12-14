@@ -59,7 +59,10 @@ class FakeVGG(nn.Module):
         self.conv, self.fc = self._make_layers()
 
     def forward(self, x):
+        print(x.size())
         x = self.conv(x)
+        print(x.size())
+        exit(0)
         x = x.view(-1, 512)
         x = self.fc(x)
         return x

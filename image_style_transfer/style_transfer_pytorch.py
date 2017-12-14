@@ -5,6 +5,8 @@ import os
 import pickle
 import torch
 import torchvision
+import matplotlib.pyplot as plt
+from PIL import Image
 
 import matplotlib.pyplot as plt
 import torch.nn as nn
@@ -14,10 +16,16 @@ import torchvision.transforms as transforms
 from torch.autograd import Variable
 from torchvision import models
 
-from load_image import *
-
 CONTENT_IMG_PATH = 'image/resized_content1.jpg'
-STYLE_IMG_PATH = 'image/resized_style3.jpg'
+STYLE_IMG_PATH = 'image/resized_stylehh.jpg'
+
+
+def image_loader(image_name):
+    loader = transforms.ToTensor()
+    image = Image.open(image_name)
+    image = Variable(loader(image).cuda())
+    image = image.unsqueeze(0)
+    return image
 
 
 class FakeVGG(nn.Module):
@@ -58,9 +66,9 @@ def gram_matrix(x):
 
 def show_image(img):
     unloader = transforms.ToPILImage()
-    image = img.clone().cpu()
-    image = image.view(3, 500, -1)
-    image = unloader(image.data)
+    image = img.data.clone().cpu()
+    image = image.view(3, 400, 600)
+    image = unloader(image)
     plt.imshow(image)
     plt.show()
 
@@ -81,22 +89,25 @@ class TotalLoss(nn.Module):
         for A, G, NxM in zip(self.As, Gs, self.NxMs):
             style_loss += torch.sum((A - G)**2).div(4 * NxM**2)
         total_loss = self.alpha * content_loss + self.beta * style_loss
+        # print(content_loss, style_loss)
         return total_loss
 
 
 def train(alpha, beta, epoch_num=100):
     model = FakeVGG()
     model.cuda()
-    content_img = Variable(torch.Tensor(load_image(CONTENT_IMG_PATH)).cuda())
-    style_img = Variable(torch.Tensor(load_image(STYLE_IMG_PATH)).cuda())
-    # print(content_img.size(), style_img.size())
+    content_img = image_loader(CONTENT_IMG_PATH)
+    style_img = image_loader(STYLE_IMG_PATH)
+    # content_img = Variable(torch.Tensor(load_image(CONTENT_IMG_PATH)).cuda())
+    # style_img = Variable(torch.Tensor(load_image(STYLE_IMG_PATH)).cuda())
     P = model.forward(content_img)[3]
     As = list(map(gram_matrix, model.forward(style_img)))
     input_img = Variable(torch.zeros(content_img.size()).cuda(), requires_grad=True)
-    input_img = content_img
+    # input_img = content_img
     input_img = nn.Parameter(input_img.data)
     criterion = TotalLoss(As, P, alpha, beta).cuda()
-    optimizer = optim.LBFGS([input_img])
+    optimizer = optim.Adam([input_img], lr=0.02)
+    # optimizer = optim.LBFGS([input_img])
     retain_graph = True
 
     def closure():
@@ -107,11 +118,12 @@ def train(alpha, beta, epoch_num=100):
         loss.backward(retain_graph=True)
         return loss
 
-    for epoch in range(epoch_num):
-        print('---- epoch: %d ----' % epoch)
-        optimizer.step(closure)
-    show_image(input_img)
+    for i in range(3):
+        for epoch in range(epoch_num):
+            print('---- epoch: %d ----' % epoch)
+            optimizer.step(closure)
+        show_image(input_img)
 
 
 if __name__ == '__main__':
-    train(1, 1000)
+    train(0, 1000, 100)

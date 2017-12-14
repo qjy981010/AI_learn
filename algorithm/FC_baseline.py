@@ -22,7 +22,8 @@ class FcBaseLine(nn.Module):
 def train(train_data, eta=0.01, epoch_num=100, test_data=None):
     net = FcBaseLine(10)
     criterion = nn.CrossEntropyLoss()
-    optimizer = optim.SGD(net.parameters(), lr=eta)
+    optimizer = optim.Adam(net.parameters(), lr=eta)
+    # optimizer = optim.SGD(net.parameters(), lr=eta, momentum=0.9)
     x = Variable(torch.Tensor(train_data[:, :-1]).float())
     y = Variable(torch.Tensor(train_data[:, -1]).long())
     if test_data is not None:

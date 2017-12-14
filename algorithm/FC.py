@@ -42,7 +42,7 @@ class FC:
         nabla_b = [np.zeros(b.shape) for b in self.bias]
         activation = x
         activations = [x]
-        onehot = np.zeros((3, 1))
+        onehot = np.zeros((self.sizes[-1], 1))
         onehot[y, 0] = 1
         y = onehot
         outputs = []
@@ -155,7 +155,7 @@ class FC:
         return accuracy(test_y, self.predict(test_x)[0])
 
 
-def main():
+def iris():
     labelmap = {'Iris-setosa': 0,
                 'Iris-versicolor': 1,
                 'Iris-virginica': 2}
@@ -169,5 +169,18 @@ def main():
     fc_net.train(train_data, 0.05, 200, 10,
                  test_data=test_data, method='adam', momentum=0)
 
+
+def mnist():
+    train_data = load_data('data/mnist-60000-hand-written-number-images/mnist_train.csv', header=None, label_column=0)
+    test_data = load_data('data/mnist-60000-hand-written-number-images/mnist_test.csv', header=None, label_column=0)
+    train_data = np.array(
+        [(x[1:].reshape((len(x)-1, 1)), x[0]) for x in train_data])
+    test_data = np.array([(x[1:].reshape((len(x)-1, 1)), x[0])
+                          for x in test_data])
+    fc_net = FC((784, 128, 10))
+    fc_net.train(train_data, 0.05, 200, 1000,
+                 test_data=test_data, method='adam', momentum=0)
+
+
 if __name__ == '__main__':
-    main()
+    iris()
