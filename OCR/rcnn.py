@@ -16,6 +16,45 @@ from warpctc_pytorch import CTCLoss
 from PIL import Image
 
 
+class LabelTransformer(object):
+
+    def __init__(self, letters):
+        self.encode_map = {letter: idx+1 for idx, letter in enumerate(letters)}
+        self.decode_map = ' ' + letters
+
+    def encode(self, text):
+        if isinstance(text, str):
+            length = [len(text)]
+            result = [self.encode_map[letter] for letter in text]
+        else:
+            length = []
+            result = []
+            for word in text:
+                length.append(len(word))
+                result.extend([self.encode_map[letter] for letter in word])
+        return torch.IntTensor(result), torch.IntTensor(length)
+
+    def decode(self, text, length=None):
+        if length is None or len(length) == 1:
+            result = []
+            for i in range(len(text)):
+                if text[i] != 0 and (not(i > 0 and text[i] == text[i-1])):
+                    result.append(self.decode_map[text[i]])
+            return ''.join(result)
+        else:
+            result = []
+            count = 0
+            for i in range(len(length)):
+                word = []
+                for j in range(length[i]):
+                    count += 1
+                    if text[count] != 0 and (not(j > 0 and
+                                            text[count] == text[count-1])):
+                        word.append(self.decode_map[text[i]])
+                result.append(''.join(word))
+            return result
+
+
 class FixHeightResize(object):
 
     def __init__(self, height):
@@ -25,44 +64,6 @@ class FixHeightResize(object):
         w, h = img.size
         width = max(int(w * self.height / h), 100)
         return img.resize((width, self.height), Image.ANTIALIAS)
-
-
-class LabelTransformer(object):
-
-    def __init__(self, letters):
-        self.encode_map = {letter: idx+1 for idx, letter in enumerate(letters)}
-        self.decode_map = ' ' + letters
-
-    def __call__(self, text, encode=True, length=None):
-        if encode:
-            if isinstance(text, str):
-                length = [len(text)]
-                result = [self.encode_map[letter] for letter in text]
-            else:
-                length = []
-                result = []
-                for word in text:
-                    length.append(len(word))
-                    result.extend([self.encode_map[letter] for letter in word])
-            return torch.IntTensor(result), torch.IntTensor(length)
-        else:
-            if not length or len(length) == 1:
-                result = []
-                for i in range(len(text)):
-                    if text[i] != 0 and (not(i > 0 and text[i] == text[i-1])):
-                        result.append(decode_map[text[i]])
-            else:
-                result = []
-                count = 0
-                for i in range(len(length)):
-                    word = []
-                    for j in range(length[i]):
-                        count += 1
-                        if text[count] != 0 and (not(j > 0 and
-                                                text[count] == text[count-1])):
-                            word.append(decode_map[text[i]])
-                    result.append(''.join(word))
-            return ''.join(result)
 
 
 class IIIT5k(Dataset):
@@ -92,12 +93,25 @@ def my_collate(batch):
     return [data, target]
 
 
-def load_data():
+def load_data(train=True):
     print('==== Loading data.. ====')
-    trainset = IIIT5k('data/IIIT5K/', train=True)
-    trainloader = DataLoader(trainset, batch_size=128, shuffle=True,
-                             num_workers=4, collate_fn=my_collate)
-    return trainloader
+    if train:
+        if os.path.exists('data/IIIT5K/train.pkl'):
+            dataset = pickle.load(open('data/IIIT5K/train.pkl', 'rb'))
+        else:
+            dataset = IIIT5k('data/IIIT5K/', train=True)
+            pickle.dump(dataset, open('data/IIIT5K/train.pkl', 'wb'), True)
+        dataloader = DataLoader(dataset, batch_size=128, shuffle=True,
+                                 num_workers=4, collate_fn=my_collate)
+    else:
+        if os.path.exists('data/IIIT5K/test.pkl'):
+            dataset = pickle.load(open('data/IIIT5K/test.pkl', 'rb'))
+        else:
+            dataset = IIIT5k('data/IIIT5K/', train=False)
+            pickle.dump(dataset, open('data/IIIT5K/test.pkl', 'wb'), True)
+        dataloader = DataLoader(dataset, batch_size=32, shuffle=False,
+                                collate_fn=my_collate)
+    return dataloader
 
 
 class DeepLSTM(nn.Module):
@@ -108,14 +122,14 @@ class DeepLSTM(nn.Module):
         self.hidden_size = hidden_size
         self.output_size = output_size
         self.lstm = nn.LSTM(input_size, hidden_size, bidirectional=True)
-        self.fc = nn.Linear(hidden_size * 2, output_size)  # ????
+        self.fc = nn.Linear(hidden_size * 2, output_size) # multiply 2 because it's bidirectional
 
     def forward(self, x):
-        x = self.lstm(x)[0]
-        w, b, c = x.size()
-        x = x.view(w*b, c)
-        out = self.fc(x)
-        out = out.view(w, b, -1)
+        x = self.lstm(x)[0]         # length, batch, hidden_size*num_directions
+        l, b, h = x.size()
+        x = x.view(l*b, h)          # length*batch, hidden_size*num_directions
+        out = self.fc(x)            # length*batch, output_size
+        out = out.view(l, b, -1)    # length, batch, output_size
         return out
 
 
@@ -137,12 +151,12 @@ class CRNN(nn.Module):
         )
         self._initialize_weights()
 
-    def forward(self, x):
-        x = self.cnn(x)
-        x = x.squeeze(2)
-        x = x.permute(2, 0, 1)
-        x = self.rnn(x)
-        return x
+    def forward(self, x):           # input: height = 32
+        x = self.cnn(x)             # batch, channel, height=1, width
+        x = x.squeeze(2)            # batch, channel, width
+        x = x.permute(2, 0, 1)      # width, batch, channel
+        x = self.rnn(x)             # width/length, batch, channel
+        return x                    # length, batch, out_channels
 
     def _get_cnn_layers(self):
         cnn_layers = []
@@ -172,15 +186,14 @@ class CRNN(nn.Module):
 
 
 def train(start_epoch, epoch_num, letters, net=None, lr=0.1):
-    trainloader = load_data()
+    trainloader = load_data(train=True)
     use_cuda = torch.cuda.is_available()
-    if use_cuda:
-        print('GPU! start up!')
     if not net:
         net = CRNN(1, len(letters) + 1)
     criterion = CTCLoss()
     optimizer = optim.Adadelta(net.parameters(), lr=lr)
     if use_cuda:
+        print('GPU! start up!')
         net = net.cuda()
         criterion = criterion.cuda()
     labeltransformer = LabelTransformer(letters)
@@ -192,12 +205,10 @@ def train(start_epoch, epoch_num, letters, net=None, lr=0.1):
         loss_sum = 0
         for i, (images, labels) in enumerate(trainloader):
             for img, label in zip(images, labels):
-                label, label_length = labeltransformer(label, encode=True)
+                label, label_length = labeltransformer.encode(label)
                 img.unsqueeze_(0)
                 if use_cuda:
                     img = img.cuda()
-                    # label = label.cuda()
-                    # label_length = label_length.cuda()
                 img, label = Variable(img), Variable(label)
                 label_length = Variable(label_length)
                 optimizer.zero_grad()
@@ -213,14 +224,54 @@ def train(start_epoch, epoch_num, letters, net=None, lr=0.1):
     return net
 
 
-if __name__ == '__main__':
+def test(net, letters):
+    testloader = load_data(train=False)
+    use_cuda = torch.cuda.is_available()
+    if use_cuda:
+        print('GPU! start up!')
+        net = net.cuda()
+    labeltransformer = LabelTransformer(letters)
+
+    print('====   Testing..   ====')
+    net.eval()
+    correct = 0
+    for i, (images, labels) in enumerate(testloader):
+        for img, origin_label in zip(images, labels):
+            label, label_length = labeltransformer.encode(origin_label)
+            img.unsqueeze_(0) # (channel, w, h) to (batch, channel, w, h)
+            if use_cuda:
+                img = img.cuda()
+            img, label = Variable(img), Variable(label)
+            label_length = Variable(label_length)
+
+            outputs = net(img)                      # length, batch, num_letters
+            length = [outputs.size(0)]
+            outputs = outputs.max(2)[1].squeeze(1)  # length
+            outputs = labeltransformer.decode(outputs.data, length=length)
+            if outputs == origin_label:
+                correct += 1
+    print('test accuracy: ', correct / 30, '%')
+
+
+def main(istrain=True):
     file_name = 'rcnn.pkl'
-    letters = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'
-    net = None
-    start_epoch = 0
-    epoch_num = 10
-    lr = 0.1
-    if os.path.exists(file_name):
+    letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'
+    if train:
+        net = None
+        start_epoch = 0
+        epoch_num = 2
+        lr = 0.1
+        if os.path.exists(file_name):
+            start_epoch, net = pickle.load(open(file_name, 'rb'))
+        for i in range(10):
+            net = train(start_epoch, epoch_num, letters, net=net, lr=lr)
+            start_epoch += epoch_num
+            test(net, letters)
+        pickle.dump((start_epoch, net), open(file_name, 'wb'), True)
+    else:
         start_epoch, net = pickle.load(open(file_name, 'rb'))
-    net = train(start_epoch, epoch_num, letters, net=net, lr=lr)
-    pickle.dump((start_epoch+epoch_num, net), open(file_name, 'wb'))
+        test(net, letters)
+
+
+if __name__ == '__main__':
+    main(istrain=True)
