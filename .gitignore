@@ -1,6 +1,11 @@
-OCR/data/
-__pycache__/
-cifar_10_train/data/
+*__pycache__/
+*data/
+*.model/
+*.models/
 *.pkl
 *.csv
 *.txt
+*.mat
+*.pyc
+*.png
+*.jpg

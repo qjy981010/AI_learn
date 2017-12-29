@@ -14,8 +14,6 @@ from torch.autograd import Variable
 
 def get_data():
     transform_train = transforms.Compose([
-        transforms.RandomCrop(32, padding=4),
-        transforms.RandomHorizontalFlip(),
         transforms.ToTensor(),
         transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)),
     ])
@@ -60,11 +58,11 @@ cfg = {
 
 class VGG(nn.Module):
 
-    def __init__(self, features):
+    def __init__(self, features, out_channels):
         super(VGG, self).__init__()
         self.features = features
         self.classifier = nn.Sequential(
-            nn.Linear(512, 10),
+            nn.Linear(512, out_channels),
         )
         # self.classifier = nn.Linear(512, 10)
         self._initialize_weights()
@@ -92,9 +90,8 @@ class VGG(nn.Module):
                 m.bias.data.zero_()
 
 
-def make_layers(cfg, batch_norm=False):
+def make_layers(in_channels, cfg, batch_norm=False):
     layers = []
-    in_channels = 3
     for i in cfg:
         if i == 'M':
             layers.append(nn.MaxPool2d(kernel_size=2, stride=2))
@@ -109,7 +106,7 @@ def make_layers(cfg, batch_norm=False):
 
 def train(vgg_num, trainloader, net=None, start_epoch=0, epoch_num=2):
     if not net:
-        net = VGG(make_layers(cfg[vgg_num], True))
+        net = VGG(make_layers(3, cfg[vgg_num], True), 10)
     net.cuda()
 
     criterion = nn.CrossEntropyLoss()
