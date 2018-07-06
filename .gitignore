@@ -1,7 +1,11 @@
 *__pycache__/
 *data/
-*.model/
-*.models/
+*datasets/
+*model/
+*models/
+*.rar
+*.zip
+*.tar
 *.pkl
 *.csv
 *.txt

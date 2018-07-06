@@ -127,7 +127,7 @@ def test(net, test_set, classes):
     total = 0
     class_correct = [0.0] * 10
     class_total = [0.0] * 10
-    net.test()
+    net.eval()
     for data in test_set:
         images, labels = data
         outputs = net(Variable(images.cuda()))

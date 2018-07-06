@@ -217,7 +217,7 @@ def test(root, net, letters, fix_width=True):
 
 
 def main(training=True, fix_width=True):
-    file_name = ('fix_width_' if fix_width else '') + 'crnn_.pkl'
+    file_name = ('fix_width_' if fix_width else '') + 'crnn.pkl'
     letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'
     root = 'data/IIIT5K/'
     if training:
@@ -241,4 +241,4 @@ def main(training=True, fix_width=True):
 
 
 if __name__ == '__main__':
-    main(training=True, fix_width=True)
+    main(training=False, fix_width=False)
